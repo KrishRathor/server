@@ -113,5 +113,98 @@ router.post('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+router.post('/editname', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name } = req.body as { name?: string };
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'name is required' });
+      return;
+    }
+
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { name: name.trim() },
+      { new: true, runValidators: true }
+    ).select('-passwordHash');
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    res.json({ id: user._id, name: user.name, email: user.email, role: user.role });
+  } catch (err) {
+    console.error('Change name error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/editemail', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { email, password } = req.body as { email?: string; password?: string };
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({ error: 'email is required' });
+      return;
+    }
+    if (!password || typeof password !== 'string') {
+      res.status(400).json({ error: 'current password is required to change email' });
+      return;
+    }
+
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) {
+      res.status(401).json({ error: 'Invalid password' });
+      return;
+    }
+
+    const normalized = email.toLowerCase().trim();
+    if (normalized === user.email) {
+      res.status(400).json({ error: 'New email must be different' });
+      return;
+    }
+
+    const exists = await User.findOne({ email: normalized });
+    if (exists) {
+      res.status(409).json({ error: 'Email already in use' });
+      return;
+    }
+
+    user.email = normalized;
+    await user.save();
+
+    const out = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    };
+
+    res.json(out);
+  } catch (err) {
+    console.error('Change email error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+
 export default router;
 
