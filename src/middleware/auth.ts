@@ -1,4 +1,4 @@
-import { type Request, type Response, type NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { verifyJwt } from '../utils/jwt';
 
 export interface AuthRequest extends Request {
@@ -6,10 +6,14 @@ export interface AuthRequest extends Request {
 }
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
-  const auth = req.header('authorization') || req.header('Authorization');
-  if (!auth) return res.status(401).json({ error: 'No token' });
+  const header = req.headers.authorization || req.headers.Authorization;
 
-  const parts = auth.split(' ');
+  if (!header) {
+    res.status(401).json({ error: 'No token provided' });
+    return;
+  }
+
+  const parts = (header as string).split(' ');
   const token = parts.length === 2 ? parts[1] : parts[0];
 
   try {
@@ -17,7 +21,8 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     req.user = { id: payload.sub, role: payload.role };
     next();
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid token' });
+    console.error('Invalid JWT:', err);
+    res.status(401).json({ error: 'Invalid token' });
   }
 }
 

@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import User, { type Role } from '../models/user';
 import { signJwt } from '../utils/jwt';
+import { authMiddleware, type AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -86,6 +87,28 @@ router.post('/login', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('Login error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await User.findById(req.user?.id).select('-passwordHash');
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    res.json({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      consentGiven: user.consentGiven,
+      createdAt: user.createdAt,
+    });
+  } catch (err) {
+    console.error('Me route error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
